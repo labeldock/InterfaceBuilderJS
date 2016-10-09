@@ -28,9 +28,9 @@ plusOne([1,2,3]);
 
 var totalObject = {};
 var totalObjectPlusAction = ib(totalObject)
-                .map(function(v){ return v+1; })
-                .inst(function(data){ this.result = 0; ib.each(data,function(v){ this.result += v; return data;  }.bind(this)) })
-                .build();
+                            .map(function(v){ return v+1; })
+                            .inst(function(data){ this.result = 0; ib.each(data,function(v){ this.result += v; return data;  }.bind(this)) })
+                            .build();
 
 totalObjectPlusAction([1,2,3]);
 //=> [2, 3, 4]
@@ -40,11 +40,36 @@ totalObject;
 
 ```
 
-```
+```javascript
+
 var data = [1,2,3];
 ib.map([1,2,3],function(v){ return b+1; });
 
 data;
 //=> [2, 3, 4]
+
+```
+
+```javascript
+
+var a={name:"a"},b={name:"b"},c={name:"c"};
+
+var plusOneAction = ib(a)
+                    .map(function(v){ return v+1; })
+                    .inst(function(data){ this.result = data; return this; })
+                    .build();
+
+plusOneAction([1,2,3]);
+//=> {name: "a", result: [2, 3, 4]}
+
+plusOneAction.bind(b)([2,3,4]);
+//=> {name: "b", result: [3, 4, 5]}
+
+plusOneAction.bind(c)([3,4,5]);
+//=> {name: "c", result: [4, 5, 6]}
+
+plusOneAction([4,5,6]);
+a;
+//=> {name: "a", result: [5, 6, 7]}
 
 ```

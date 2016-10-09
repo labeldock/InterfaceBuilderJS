@@ -6,7 +6,8 @@
 	var CFBREAKER = {$:"this is enum breaker"};
 	
 	var CFIS = {
-		DATA:function(a){ return (typeof a === "object" && a !== null ) ? (((a instanceof Array || a instanceof NodeList || a instanceof HTMLCollection || CORE.TYPEOF.VENDER(a) || ( !isNaN(a.length) && isNaN(a.nodeType))) && !(a instanceof Window) ) ? true : false) : false; }.bind(),
+		VENDER:function(o){ return (typeof o === "object" && o !== null ) ? ("jquery" in o) ? true : false : false; },
+		DATA:function(a){ return (typeof a === "object" && a !== null ) ? (((a instanceof Array || a instanceof NodeList || a instanceof HTMLCollection || CFIS.VENDER(a) || ( !isNaN(a.length) && isNaN(a.nodeType))) && !(a instanceof Window) ) ? true : false) : false; }.bind(),
 		ARRAY:function(a){ return a instanceof Array; }.bind(),
 	};
 	
@@ -72,44 +73,48 @@
 	
 	var IBProcess = function(process){
 		return function(){
-			var select = this.$select;
-			var que    = Array.prototype.slice.call(this.$q);
+			var newque = Array.prototype.slice.call(this.$que);
 			var ibargs = Array.prototype.slice.call(arguments);
 			
-			que.push(function(callback){
+			newque.push(function(callback){
+				var select = this.$select;
 				var args = Array.prototype.slice.call(ibargs);
 				args.unshift(callback);
+				
 				return process.apply(select,args);
 			});
 			
-			return new InterfaceDefine(select,que);
+			return new InterfaceDefine(this.$select,newque);
 		};
 	};
 	
 	var IBPrototype = {
 		inst:IBProcess(function(d,f){
-			return f.call(this,d);
+			return f.call(this,d,this.$select);
 		}),
 		build:function(){
-			var Inteface = this;
-			return function(c){
-				for(var i=0,q=Inteface.$q,l=q.length;i<l;i++) c = q[i](c);
+			var Inteface = this, f = function(c){
+				for(var i=0,q=Inteface.$que,l=q.length;i<l;i++) c = q[i].call(Inteface,c);
 				return c;
 			}.bind();
+			
+			f.bind = function(bindSelect){
+				return (new InterfaceDefine(bindSelect,Inteface.$que)).build();
+			};
+			
+			return f;
 		}
 	};
 	
 	for(var key in IBFunction) {
 		ib[key] = IBFunction[key];
-		if(typeof IBFunction[key] === "function"){
-			IBPrototype[key] = IBProcess(IBFunction[key]);
-		}
+		if(typeof IBFunction[key] === "function") IBPrototype[key] = IBProcess(IBFunction[key]);
 	}
 	
 	var InterfaceDefine = window.InterfaceDefine = (function(){
 		var InterfaceDefine = function(select,que){
 			this.$select = select;
-			this.$q = CFAS.DATA(que);
+			this.$que = CFAS.DATA(que);
 		};
 		
 		InterfaceDefine.prototype = IBPrototype;
