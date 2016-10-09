@@ -15,6 +15,21 @@ render the element
 
 ## Code design
 
+
+### function
+```javascript
+
+var data = [1,2,3];
+ib.map([1,2,3],function(v){ return b+1; });
+
+data;
+//=> [2, 3, 4]
+
+```
+
+
+###  build style
+
 ```javascript
 
 var plusOne = ib().map(function(v){ return v+1; }).build();
@@ -37,16 +52,6 @@ totalObjectPlusAction([1,2,3]);
 
 totalObject;
 //=> {result: 9}
-
-```
-
-```javascript
-
-var data = [1,2,3];
-ib.map([1,2,3],function(v){ return b+1; });
-
-data;
-//=> [2, 3, 4]
 
 ```
 
