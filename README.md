@@ -16,7 +16,7 @@ render the element
 ## Code design
 
 
-### function
+### function style
 ```javascript
 
 var data = [1,2,3];
