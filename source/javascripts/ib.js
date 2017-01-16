@@ -1,7 +1,7 @@
 (function(window){
 	
 	var IB = window.ib = function(select){ return (new InterfaceDefine(select)); };
-	IB.version = "0.0.1";
+	IB.version = "0.0.2";
 	
 	var CFBREAKER = {$:"this is enum breaker"};
 	
@@ -85,7 +85,7 @@
 	};
 	
 	var IBPrototype = {
-		inst:IBProcesser(function(d,f){
+		dist:IBProcesser(function(d,f){
 			return f.call(this,d,this.$select);
 		}),
 		build:function(){
@@ -118,10 +118,71 @@
 		return IB.PROCESS(IB.METHOD(k,v));
 	};
 	
+	 
+	
 	//default
 	IB.METHOD({
 		"break":CFBREAKER,
-		"props":CFAS.PROPS
+		"props":CFAS.PROPS,
+		"max":function(obj){
+			if(typeof obj !== "object") return (void 0);
+			for(var r=obj[0],i=1,d=obj,l=d.length;i<l;r=r>d[i]?r:d[i],i++);
+			return r;
+		},
+		"min":function(obj){
+			if(typeof obj !== "object") return (void 0);
+			for(var r=obj[0],i=1,d=obj,l=d.length;i<l;r=r<d[i]?r:d[i],i++);
+			return r;
+		},
+		"turn":function(i,p,ts){
+			if(i < 0) { var abs = Math.abs(i/ts); i = p-(abs>p?abs%p:abs); }; 
+			ts=ts?ts:1;i=Math.floor(i/ts);
+			return (p > i)?i:i%p;
+		},
+		"range":function(value,step,last){
+		    var r=[],start,end,reverse;
+		    if(typeof value === "number"){ end = value; start = 0; }
+		    if(typeof value === "object"){ start = value[0]; end = value[1];
+		 	   if(typeof last !== "boolean"){ last = true; }
+		    }
+		    if(typeof start !== "number" || typeof end !== "number"){
+		        if(typeof start !== "number" && typeof end !== "number") return r;
+		        if(typeof start === "number") return r.push(start),r;
+		        if(typeof end   === "number") return r.push(end)  ,r;
+		    }
+		    if(start > end){ reverse = end; end = start; start = reverse; reverse = true; }
+		    end=parseFloat(end),end=isNaN(end)?0:end;
+		    start=parseFloat(start),start=isNaN(start)?0:start;
+		    step=parseFloat(step),step=isNaN(step)||step==0?1:step;
+		    if(step <= 0){ return console.warn("range::not support minus step"),r;};
+		    if(last==true) for(var i=start,l=end;i<=l;i=i+step) r.push(i); else for(var i=start,l=end;i<l;i=i+step) r.push(i);
+		    return reverse ? r.reverse() : r;
+		},
+		"matrix":function(start,end,step){
+		    var scales=[];
+		    var maxLength = IB.max([start.length,end.length]);
+		    var selectLengthes = IB.times(maxLength,function(scaleIndex){
+		        var range = IB.range([start[scaleIndex],end[scaleIndex]])
+		        scales.push(range);
+		        return range.length;
+		    });
+
+		    var result = IB.times(IB.reduce(selectLengthes,function(redu,value){
+		        return redu * value;
+		    },1),function(){ return new Array(maxLength); });
+        	
+		    var turnSize = 1;
+        
+		    IB.each(scales,function(scaleCase,scaleIndex){
+		        var scaleCaseLength = scaleCase.length;
+		        IB.times(result.length,function(time){
+		            result[time][scaleIndex] = scaleCase[ib.turn(time,scaleCaseLength,turnSize)];
+		        });
+		        turnSize = turnSize * scaleCaseLength;
+		    });
+        
+		    return result;
+		}
 	});
 	
 	IB.DUAL({
@@ -134,18 +195,15 @@
 			return d;
 		},
 		"map":function(d,f){
-			var c;
-			for(var i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(d[i],i)) === CFBREAKER ) break; else (d[i]=c);
+			for(var c,i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(d[i],i)) === CFBREAKER ) break; else (d[i]=c);
 			return d;
 		},
 		"inject":function(d,f,r){
-			var c,r=(typeof r === "object")?r:{};
-			for(var i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(r,d[i],i)) === CFBREAKER ) break;
+			for(var c,r=(typeof r === "object")?r:{},i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(r,d[i],i)) === CFBREAKER ) break; else r=c;
 			return r;
 		},
 		"reduce":function(d,f,r){
-			var c;
-			for(var i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(d,d[i],i)) == CFBREAKER ) break; else r=c;
+			for(var c,i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(r,d[i],i)) == CFBREAKER ) break; else r=c;
 			return r;
 		},
 		"forEach":function(d,f){
@@ -155,6 +213,10 @@
 		"forMap":function(d,f){
 			var c;
 			for(var k in d) if( (c=f(d[k],k)) === CFBREAKER ) return d; else d[k] = c;
+			return d;
+		},
+		"times":function(l,f){
+			for(var c,d=[],i=0,l=(typeof l==="number" && l>=0)?l:0;i<l;i++) if( (c=f(i)) === CFBREAKER ) break; else (d.push(c));
 			return d;
 		}
 	});

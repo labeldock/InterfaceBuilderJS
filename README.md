@@ -44,7 +44,7 @@ plusOne([1,2,3]);
 var totalObject = {};
 var totalObjectPlusAction = ib(totalObject)
                             .map(function(v){ return v+1; })
-                            .inst(function(data){ this.result = 0; ib.each(data,function(v){ this.result += v; return data;  }.bind(this)) })
+                            .dist(function(data){ this.result = 0; ib.each(data,function(v){ this.result += v; return data;  }.bind(this)) })
                             .build();
 
 totalObjectPlusAction([1,2,3]);
@@ -61,7 +61,7 @@ var a={name:"a"},b={name:"b"},c={name:"c"};
 
 var plusOneAction = ib(a)
                     .map(function(v){ return v+1; })
-                    .inst(function(data){ this.result = data; return this; })
+                    .dist(function(data){ this.result = data; return this; })
                     .build();
 
 plusOneAction([1,2,3]);
