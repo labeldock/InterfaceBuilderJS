@@ -1,14 +1,15 @@
 (function(window){
 	
 	var IB = window.ib = function(select){ return (new InterfaceDefine(select)); };
-	IB.version = "0.0.2";
+	IB.version = "0.0.3.unstabled";
 	
 	var CFBREAKER = {$:"this is enum breaker"};
 	
 	var CFIS = {
 		VENDER:function(o){ return (typeof o === "object" && o !== null ) ? ("jquery" in o) ? true : false : false; },
-		DATA:function(a){ return (typeof a === "object" && a !== null ) ? (((a instanceof Array || a instanceof NodeList || a instanceof HTMLCollection || CFIS.VENDER(a) || ( !isNaN(a.length) && isNaN(a.nodeType))) && !(a instanceof Window) ) ? true : false) : false; }.bind(),
-		ARRAY:function(a){ return a instanceof Array; }.bind(),
+		ARRAY:function(a){ return a instanceof Array; },
+		DATA:function(a){ return (typeof a === "object" && a !== null ) ? (((a instanceof Array || a instanceof NodeList || a instanceof HTMLCollection || CFIS.VENDER(a) || ( !isNaN(a.length) && isNaN(a.nodeType))) && !(a instanceof Window) ) ? true : false) : false; },
+		DATUM:function(d){ return (typeof d === "object" && !CFIS.DATA(d)); },
 		ELEMENT:function(a){ if(a == null) return false; if(typeof a === "object") if(a.nodeType == 1) return true; return false; },
 		NODE:function(a){ if(a == null) return false; if(typeof a === "object") if(typeof a.nodeType == "number") return true; return false; },
 		USELESS:function(o){ 
@@ -57,6 +58,8 @@
 			
 			return [];
 		}.bind(),
+		INT:function(v){ return ~~v; },
+		FLOAT:function(v){ return v*1; },
 		PROPS:function(k,v){
 			if(typeof k === "object") return k;
 			if(typeof k === "string" || typeof k === "number") return {k:v};
@@ -102,6 +105,11 @@
 		}
 	};
 	
+	IB.CALLFOR = function(f,v){
+		if(typeof f === "function") return f.apply(this,Array.prototype.slice.call(arguments,1));
+		return v;
+	};
+	
 	IB.METHOD = function(k,v){
 		var props = CFAS.PROPS(k,v);
 		for(var key in props) ib[key] = props[key];
@@ -118,26 +126,284 @@
 		return IB.PROCESS(IB.METHOD(k,v));
 	};
 	
-	 
+	IB.CLASS = function(func,proto){
+		if(proto) func.prototype = proto;
+		if(!func.prototype) func.prototype = {};
+		func.prototype.constructor = func;
+		return func;
+	};
 	
 	//default
 	IB.METHOD({
 		"break":CFBREAKER,
 		"props":CFAS.PROPS,
-		"max":function(obj){
+		"clone":function(target,d){
+			if(d == true) {
+				if(CFIS.DATA(target)) {
+					if(!CFIS.DATA(d)) { d = [] };
+					for (var i=0,l=target.length;i<l;i++) d.push( ((typeof target[i] === "object" && target[i] !== null ) ? ib.clone(target[i]) : target[i]) )
+						return d;
+				} else {
+					if(d == true) { d = {} };
+					for (var p in target) (typeof target[p] === "object" && target[p] !== null && d[p]) ? ib.clone(target[p],d[p]) : d[p] = target[p];
+					return d;
+				}
+			
+			}
+			switch(typeof target){
+				case "undefined": case "function": case "boolean": case "number": case "string": return target; break;
+				case "object":
+					if(target === null) return target;
+					if(target instanceof Date){
+						var r=new Date();r.setTime(target.getTime());return r;
+					}
+					if(CFIS.DATA(target)){
+						var r=[]; for(var i=0,length=target.length;i<length;i++)r.push(target[i]); return r;
+					} 
+					if(CFIS.ELEMENT(target) == true){
+						return target;
+					}
+					var r={};
+					for(var k in target){
+						if(target.hasOwnProperty(k))r[k]=target[k];
+					}
+					return r;
+					break;
+				default : console.error("ib.clone::copy failed : target => ",target); return target; break;
+			}
+		},
+		"findKeys":function(obj,value){
+			var result = [];
+	        if(CFIS.DATA(obj)){
+	        	for(var i=0,l=obj.length;i<l;i++) if(typeof value === "function" ? value(obj[i],i) : obj[i]===value) result.push(i);
+	        } 
+	        if(CFIS.DATUM(obj)){
+	        	for(var key in obj) if(typeof value === "function" ? value(obj[key],key) : obj[key]===value) result.push(key);
+	        }
+			return result;
+		},
+		"removeValue":function(obj,value){
+			var detect = true;
+
+			while(detect) {
+				var key = IB.findKeys(obj,value)[0];
+				if(typeof key === "undefined"){
+					detect = false;
+				} else {
+					if(CFIS.ARRAY(obj)){
+						obj.splice(key,1);
+					} else {
+						delete obj[key];
+					}
+				}
+			}
+			
+			return obj;
+		},
+	    "toArray":function(data,option){
+	        if(typeof data === "undefined" || data === null || data === NaN ){
+	            return [];
+	        }
+	        if(CFIS.DATA(data)){
+	            return Array.prototype.slice.call(data);
+	        }
+	        if(typeof data === "object" && typeof data.toArray === "function"){
+	            return data.toArray();
+	        }
+	        if(typeof data === "string", typeof option === "string"){
+	            return data.split(option);
+	        }
+	        return [data];
+	    },
+	    "asArray":function(data,option){
+	    	return CFIS.DATA(data) ? data : IB.toArray(data,option);
+	    },
+		"concat":function(data,appends){
+			var data = IB.asArray(data);
+			return IB.each(appends,function(value){ data.push(value); }), data;
+		},
+		"filter":function(data,func){
+			for(var i=0,keys = Object.keys(data),l=keys.length;i<l;i++){
+				var value = data[keys[i]];
+				var result = func(value,keys[i]);
+				if(result == false) Array.prototype.splice.call(data,i,1),i--,l--;
+			}
+			return data;
+		},
+		"any":function(od,fm){
+			var tr=false,fm=(typeof fm === 'function')?fm:function(v){return v === fm;},fv=undefined;
+			IB.each(od,function(v,i){ if(i==0)fv=v; if(fm(v,i,fv) === true) { tr = true; return false; } });
+			return tr;
+		},
+		"all":function(od,fm){
+			var tr=true,fm=(typeof fm === 'function')?fm:function(v){return v === fm;},fv=undefined;
+			IB.each(od,function(v,i){ if(i==0)fv=v; if(fm(v,i,fv) === false) return tr = false; });
+			return tr;
+		},
+		"clear":function(data,concat){
+			if(CFIS.ARRAY(data)){
+				Array.prototype.splice.call(data,0,data.length);
+				typeof concat !== undefined && IB.concat(data,concat);
+			} else if(typeof data == "object") {
+				for(var key in data) delete data[key];
+			}
+			return data;
+		},
+		"insert":function(data,v,a){
+			Array.prototype.splice.call(data,typeof a === "number"?a:0,0,v);
+			return data;
+		},
+		"sort":function(data,filter){
+			if(data.length == 0){
+				return data;
+			}
+
+			var result = [data[0]];
+
+			for(var i=1,l=data.length;i<l;i++){
+				for(var ri=0,rl=result.length;ri<rl;ri++){
+					if(filter(data[i],result[ri]) === true){
+						IB.insert(result,data[i],ri);
+						break;
+					}
+					if((ri + 1) === result.length){
+						result.push(data[i]);
+					}
+				}
+			}
+
+			IB.clear(data);
+
+			for(var i=0,l=result.length;i<l;data.push(result[i]),i++);
+
+			return data;
+		},
+		"sortBy":function(sortData,byData,pair){
+			var result = [];
+        
+			for(var bi=0,byd=byData,bl=byd.length;bi<bl;bi++){
+				for(var si=0,sod=sortData,sl=sod.length;si<sl;si++){
+					if(pair(sod[si],byd[bi]) === true){
+						result[bi] = sod.splice(si,1)[0];
+						si--;
+						sl--;
+						break;
+					}
+				}
+			}
+        
+			IB.clear(sortData);
+			for(var i=0,l=result.length;i<l;sortData[i] = result[i],i++);
+        
+			return sortData;
+		},
+		"compact":function(data,removeWithEmpty){
+			if(typeof data === "object"){
+				if(CFIS.ARRAY(data)){
+					IB.filter(data,function(value){
+						if(removeWithEmpty == true && CFIS.USELESS(value)){
+							return false;
+						} else if (value === undefined || value === null){
+							return false;
+						}
+						return true;
+					})
+				} else {
+					IB.forEach(data,function(value,key){
+						if(removeWithEmpty == true && CFIS.USELESS(value)){
+							delete data[key];
+						} else if(value === undefined || value === null){
+							delete data[key];
+						}
+					});
+				}
+			}
+			return data;
+		},
+		"nestedEach":(function(){
+			var DROPDOWN_PROC = function(node,nestedKey,proc,parentReturn,depth){
+				++depth;
+				var nodeIndex = 0;
+				IB.forEach(node,function(data,forKey){
+					if(CFIS.ARRAY(data)){
+						data.length && DROPDOWN_PROC(data,nestedKey,proc,parentReturn,depth);
+					} else{
+						if((CFIS.ARRAY(node) && CFIS.DATUM(data)) || (CFIS.DATUM(data) && forKey == nestedKey)){
+							var destChilds = [];
+							nestedKey === Object && IB.each(Object.keys(data),function(ok){ CFIS.ARRAY(data[ok]) && destChilds.push(data[ok]); });
+							typeof data[nestedKey] === "object" && destChilds.push(data[nestedKey]);
+
+							var procReturn = proc(data,parentReturn,depth,nodeIndex++);
+
+							IB.each(destChilds,function(dest){
+								DROPDOWN_PROC(dest,nestedKey,proc,procReturn,depth);
+							});
+						}
+					}
+				});
+			};
+			return function(node,nestedKey,proc,startParam){
+	            if(CFIS.DATUM(node) && !CFIS.ARRAY(node)) {
+	                var destChilds = [];
+	                nestedKey === Object && IB.each(Object.nestedKeys(node),function(ok){ CFIS.ARRAY(node[ok]) && destChilds.push(node[ok]); });
+	                typeof node[nestedKey] === "object" && destChilds.push(node[nestedKey]);
+	                startParam = proc(node,startParam,0);
+	                IB.each(destChilds,function(dest){ DROPDOWN_PROC(dest,nestedKey,proc,startParam,0); });
+	            } else {
+	                DROPDOWN_PROC(node,nestedKey,proc,startParam,-1);
+	            }
+	            return node;
+			}
+		}()),
+		"move":function(data,oldIndex,newIndex){
+			if(oldIndex !== newIndex && CFIS.ARRAY(data) && typeof oldIndex === "number" && typeof newIndex === "number" && oldIndex >= 0 && oldIndex < data.length){
+				Array.prototype.splice.call(data,newIndex > data.length ? data.length : newIndex,0,Array.prototype.splice.call(data,oldIndex,1)[0]);
+			}
+			return data;
+		},
+	    "keys":function(){
+	        var result = {}, args = Array.prototype.slice.call(arguments);
+	        for(var ak in args) for(var ok in args[ak]) result[ok] = 1;
+	        return Object.keys(result);
+	    },
+		"max":function(obj,getf){
 			if(typeof obj !== "object") return (void 0);
-			for(var r=obj[0],i=1,d=obj,l=d.length;i<l;r=r>d[i]?r:d[i],i++);
+			for(var r=getf?getf(obj[0]):obj[0],i=1,d=obj,l=d.length,di=(void 0);i<l;di=getf?getf(d[i]):d[i],r=r>di?r:di,i++);
 			return r;
 		},
-		"min":function(obj){
+		"min":function(obj,getf){
 			if(typeof obj !== "object") return (void 0);
-			for(var r=obj[0],i=1,d=obj,l=d.length;i<l;r=r<d[i]?r:d[i],i++);
+			for(var r=getf?getf(obj[0]):obj[0],i=1,d=obj,l=d.length,di=(void 0);i<l;di=getf?getf(d[i]):d[i],r=r<di?r:di,i++);
 			return r;
 		},
 		"turn":function(i,p,ts){
 			if(i < 0) { var abs = Math.abs(i/ts); i = p-(abs>p?abs%p:abs); }; 
 			ts=ts?ts:1;i=Math.floor(i/ts);
 			return (p > i)?i:i%p;
+		},
+		"index":function(data,value){
+			var index = -1;
+			IB.each(data,typeof value === "function"?
+				function(v,i){ 
+					if(value(v,i)===true) {
+						index = i;
+						return CFBREAKER;
+					}
+				}:
+				function(v,i){
+					if(v === value){
+						index = i;
+						return CFBREAKER;
+					}
+				}
+			);
+			return index;
+		},
+		"toggle":function(ta,cv,set){
+			var index = IB.index(ta,function(arg){ return arg == cv; }) + 1;
+			if(arguments.length > 2) for(var i=0,l=ta.length;i<l;i++) if( ta[i] == set ) return ta[i];
+			index = ta.length == index ? 0 : index;
+			return ta[index];
 		},
 		"range":function(value,step,last){
 		    var r=[],start,end,reverse;
@@ -182,6 +448,291 @@
 		    });
         
 		    return result;
+		},
+		"limit":function(i,m,s){
+			if(typeof m !== "number") return i;
+			if(typeof s !== "number") s = 0;
+			if(i > m) return m;
+			if(i < s) return s;
+			return i;
+		},
+		"makeSpace":(function(){
+			var Space = IB.CLASS(function(source,step){
+				this.$type= 
+				this.$stuff=
+				this.$step= 
+				this.$cache= undefined;
+			
+				if(source instanceof Space){
+					this.$type  = source.$type;
+					this.$stuff = source.$stuff;
+					this.$step  = source.$step;
+					return;
+				}
+			
+				if(CFIS.ARRAY(source)){
+					if(step == false){
+						return this.setArrange(ib.clone(source));
+					} else {
+						return this.setRange(source[0],source[source.length-1],step);
+					}	
+				}
+						
+				var source = (source+"").trim(),range = /^([\-\+\.0-9]+)(\~|\-)([\-\+\.0-9]+)$/.exec(source);
+			
+				if(range){
+					var sourceData = Array.prototype.slice.call(range,1);
+					return this.setRange(sourceData[0],sourceData[2],step);
+				}
+			
+				if(source.indexOf("||") > -1) return this.setArrange(source.split("||"));
+				if(source.indexOf(",") > -1) return this.setArrange(source.split(","));
+				this.setArrange([source]);
+			},{
+				setStep:function(step){
+					var step=CFAS.FLOAT(step);
+					this.$step=step==0?1:step;
+				},
+				setRange:function(p1,p2,step){
+					this.$type  = "range";
+				
+					p1 = CFAS.FLOAT(p1);
+					p2 = CFAS.FLOAT(p2);
+				
+					if(p1 > p2) this.$stuff=[p2,p1]; else this.$stuff=[p1,p2];
+				
+					if(!this.$step) this.setStep(step); else if(step) this.setStep(step);
+				},
+				setArrange:function(data){
+					this.$type  = "arrange";
+					this.$stuff = data;
+				},
+				step:function(){
+					return this.$step;
+				},
+				clone:function(){
+					return IB.makeSpace(this);
+				},
+				scale:function(requireNumber){
+					if(this.$cache) return this.$cache;
+					switch(this.$type){
+					case "range":
+						return this.$cache = IB.range(CFAS.FLOAT(this.$stuff[1]),CFAS.FLOAT(this.$stuff[0]),this.$step,true);
+					case "arrange":
+						return this.$cache = (requireNumber==true ?  IB.map(this.$stuff[0].split(this.$stuff[1]),function(n){return CFAS.FLOAT(n)}) : this.$stuff[0].split(this.$stuff[1]));
+					}
+				},
+				maximum:function(v){
+					//range
+					if(this.$type==="range") {
+						//set
+						if(typeof v==="number"){
+							delete this.$cache;
+							return this.setRange(this.$stuff[0],v), this;
+						} else {
+							//get
+							return this.$stuff[1];
+						}
+					}
+					//get
+					
+					var thisRange = IB.asArray(this.scale(typeof v==="boolean"?v:true));
+					return thisRange[thisRange.length-1];
+				},
+				minimum:function(v){
+					//set
+					if(this.$type==="range"){
+						if(typeof v==="number"){
+							delete this.$cache;
+							return this.setRange(v,this.$stuff[1]), this;
+						} else {
+							return CFAS.FLOAT(this.$stuff[0]);
+						}
+					}
+					
+					return IB.asArray(this.scale(typeof v==="boolean"?v:true))[0];
+				},
+				attract:function(){
+					return IB.attract(this.scale());
+				},
+				around:function(v){
+					if(this.$type === "range"){
+						var v   = CFAS.FLOAT(v);
+						var min = this.minimum();
+						var max = this.maximum();
+					
+						if(v >= max) return max;
+						if(v <= min) return min;
+					
+						return (Math.round((v - min) / this.$step) * this.$step) + min;
+					} else {
+						//arrange
+						var range = this.scale();
+				
+						if(range[0] > v || range.length === 1) { return range[0]; }
+						if(range[range.length-1] < v) { return range[range.length-1]; }
+				
+						var s,si;
+				
+						for(var i=0,l=range.length;i<l;i++){
+							if(range[i] > v) break;
+							s=range[i],si=i;
+						}
+				
+						if(!s) return range[range.length-1];
+						var sa = range[si+1];
+						return typeof sa == "undefined" ? s : (v - s) < (sa - v) ? s : sa;
+					}
+				},
+				length:function(){
+					if(this.$type==="range"){
+						// TODO:not full tested
+						return Math.floor((CFAS.FLOAT(this.$stuff[1]) - (CFAS.FLOAT(this.$stuff[0]) - this.$step)) / this.$step);
+					} else {
+						return this.scale().length;
+					}
+				},
+				size:function(){
+					if(this.$type==="range"){
+						return CFAS.FLOAT(this.$stuff[1]) - CFAS.FLOAT(this.$stuff[0]);
+					} else {
+						return this.scale().length;
+					}
+				},
+				valueAt:function(i,iproc){
+					var i=(iproc || IB.limit)(i,this.length());
+				
+					switch(this.$type){
+					case "range":
+						return this.minimum() + (this.$step * i);
+					case "arrange":
+						return this.scale()[i];
+					}
+				},
+				vectorByValue:function(v){
+					return (v - this.minimum()) / this.size();
+				},
+				valueByVector:function(v,around){
+					var calc = this.minimum() + this.size() * v;
+					return around == false ? calc : this.around(calc);
+				},
+				isInner:function(z){
+					if(!(z instanceof Space)) z = new Space(z);
+					return this.maximum() <= z.maximum() && this.minimum() >= z.minimum();
+				},
+				isOuter:function(z){
+					if(!(z instanceof Space)) z = new Space(z);
+					return (this.minimum() >= z.maximum()) || (this.maximum() <= z.minimum());
+				},
+				isBefore:function(z){
+					if(!(z instanceof Space)) z = new Space(z);
+					return this.minimum() < z.maximum();
+				},
+				isAfter:function(z){
+					if(!(z instanceof Space)) z = new Space(z);
+					return this.maximum() < z.minimum();
+				},
+				isConfilct:function(z){
+					return !this.isOuter(z);
+				}
+			});
+			
+			return function(source,step){
+				return new Space(source,step);
+			};
+		}()),
+		"makeScale":(function(){
+			
+			var Cursor = IB.CLASS(function(pos,size,scale){
+				this.$scale = scale;
+				this.setPosition(pos);
+				this.setSize(pos);
+			},{
+				setPosition:function(v){
+					var fv = IB.CALLFOR(this.$fixedDomainPosition,CFAS.FLOAT(v));
+					var $s = this.$scale;
+					this.$position = IB.CALLFOR(function(v){
+						if($s) {
+							var min = $s.$domain.minimum();
+							var max = $s.$domain.maximum();
+							if(v < min) return min;
+							if(v > max) return max;
+						}
+						return v;
+					},fv);
+				},
+				setSize:function(v){
+					var fv = IB.CALLFOR(this.$fixedDomainSize,CFAS.FLOAT(v));
+					var $s = this.$scale;
+					this.$size = IB.CALLFOR(function(v){
+						if(v < 0) return 0;
+						if($s) {
+							var size = $s.$domain.size();
+							if(v > size) return size;
+						}
+						return v;
+					},fv);
+				},
+				setPositionByRange:function(v){
+					this.setPosition(this.$scale.$domain.valueByVector(this.$scale.$range.vectorByValue(v)));
+				},
+				getPosition:function(){
+					return this.$position;
+				},
+				getRangePosition:function(){
+					var domainVector = this.$scale.$domain.vectorByValue(this.$position);
+					return this.$scale.$range.valueByVector(domainVector);
+				},
+				destroy:function(){
+					
+					this.$scale
+				}
+			});
+			
+			var Scale = IB.CLASS(function(domain,range){
+				this.$cursors = [];
+				this.setDomain(domain);
+				this.setRange(range);
+			},{
+				setDomain:function(r){ this.$domain = new IB.makeSpace(r); },
+				setRange:function(r){ this.$range = new IB.makeSpace(r); },
+				getDomain:function(){ return this.$domain; },
+				getRange:function(){ return this.$range; },
+				ratio:function(){ return this.$range.size() / this.$domain.size(); },
+				makeCursor:function(domainPos,domainSize){
+					return IB.makeCursor(domainPos,domainSize,this);
+				}
+			});
+			
+			return function(domain,range){
+				return new Scale(domain,range);
+			};
+		}()),
+		//확률적으로 flag가 나옵니다. 0~1 true 가 나올 확률
+		"versus":function(probabilityOfTrue){
+			if(typeof probabilityOfTrue !== 'number') probabilityOfTrue = 0.5;
+			return !!probabilityOfTrue && Math.random() <= probabilityOfTrue;
+		},
+		//무작위로 뽑아낸다 //2: 길이만큼
+		"attract":function(v,length){
+			v = IB.toArray(v);
+			if(typeof length === "undefined") return v[Math.floor(Math.random() * v.length)];
+			if(length > v.length) length = v.length;
+			var r = [];
+			for(var i=0,l=length;i<l;i++){
+				var vi = Math.floor(Math.random() * v.length);
+				r.push(v[vi]);
+				v.splice(vi,1);
+			}
+			return r;
+		},
+		//데이터를 섞는다
+		"shuffle":function(v){
+			//+ Jonas Raoni Soares Silva
+			//@ http://jsfromhell.com/array/shuffle [rev. #1]
+			v = IB.toArray(v);
+			for(var j, x, i = v.length; i; j = parseInt(Math.random() * i), x = v[--i], v[i] = v[j], v[j] = x);
+			return v;
 		}
 	});
 	

@@ -233,7 +233,7 @@ ib && ib.EXTEND(function(IB,CFIS,CFAS,TODO){
 	TODO.UNIQUE = function(){
 		var value  = [],result = [];
 		for(var ai=0,li=arguments.length;ai<li;ai++){
-			var mvArray = CORE.NEW_ARRAY(arguments[ai]);
+			var mvArray = IB.toArray(arguments[ai]);
 			for(var i=0,l=mvArray.length;i<l;i++){
 				var unique = true;
 				for(var i2=0,l2=result.length;i2<l2;i2++){
