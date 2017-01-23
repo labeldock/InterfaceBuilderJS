@@ -1,7 +1,7 @@
 (function(window){
 	
 	var IB = window.ib = function(select){ return (new InterfaceDefine(select)); };
-	IB.version = "0.0.3.unstabled";
+	IB.version = "0.0.4";
 	
 	var CFBREAKER = {$:"this is enum breaker"};
 	
@@ -130,6 +130,7 @@
 		if(proto) func.prototype = proto;
 		if(!func.prototype) func.prototype = {};
 		func.prototype.constructor = func;
+		func.new = function(){ return new (Function.prototype.bind.apply(func,[func].concat(Array.prototype.slice.call(arguments)))); };
 		return func;
 	};
 	
@@ -482,6 +483,56 @@
 			for(var j, x, i = v.length; i; j = parseInt(Math.random() * i), x = v[--i], v[i] = v[j], v[j] = x);
 			return v;
 		}
+	});
+	
+	IB.METHOD({
+		"space":(function(REMOVE_VALUE){
+			
+	        var Block = function(space,domainValue,domainSize){
+	            this.$space       = space;
+	            this.$domainStart = domainValue||0;
+	            this.$domainSize  = domainSize||0;
+	        };
+    
+	        Block.prototype = {
+	            domainValue:function(){ return this.$domainStart; },
+	            domainSize:function(){ return this.$domainSize; },
+	            rangeStart:function(){ return this.$space.domainRange(this.$domainStart); },
+	            rangeSize:function(){ return this.$space.domainRangeSize(this.$domainSize); },
+	            rangeEnd:function(){ return this.rangeStart() + this.rangeSize(); },
+	            managed:function(name){ flag === false ? REMOVE_VALUE(this.$space.$managedBlocks,this) : this.$space.$managedBlocks.push(this); },
+	            call:function(f){ typeof f === "function" && f.call(this,this); }
+	        };
+    
+	        var Space = function(domain,range){
+	            this.$domain = domain;
+	            this.$range  = range;
+	            this.$niceRange = true;
+	            this.$managedBlocks = [];
+	        };
+    
+	        Space.prototype = {
+	            domainRangeSize:function(v){
+	                return (v / (this.$domain[1] - this.$domain[0])) * (this.$range[1] - this.$range[0])
+	            },
+	            domainRange:function(v){
+	                var dSize = this.$domain[1] - this.$domain[0];
+	                var sSize = this.$range[1] - this.$range[0];
+	                var dRate = (v - this.$domain[0]) / dSize;
+	                var calc  = this.$range[0] + sSize * dRate;
+	                return this.$niceRange ? Math.round(calc) : calc;
+	            },
+	            block:function(start,size){
+	                var block = new Block(this,start,size);
+	                return block;
+	            }
+	        };
+			
+            return function(domain,range){
+                return new Space(domain,range);
+            };
+			
+		}(IB.removeValue))
 	});
 	
 	IB.DUAL({

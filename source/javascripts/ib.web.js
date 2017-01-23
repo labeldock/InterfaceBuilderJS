@@ -250,6 +250,11 @@ ib && ib.EXTEND(function(IB,CFIS,CFAS,TODO){
 	
 	IB.METHOD({
 		"query":IB.ACTUAL_QUERY_SELECTOR,
+		"matches":function(node,selectText){
+			if(!CFIS.ELEMENT(node)) return false;
+			if((typeof selectText === "undefined") || selectText == "*" || selectText == "") return true;
+			return IB.MATCHES_SELECTOR_ENGINE(node,selectText);
+		},
 		"findLite":function(find){
 			if( typeof find === 'string' ){
 				// [string,null]
@@ -406,7 +411,58 @@ ib && ib.EXTEND(function(IB,CFIS,CFAS,TODO){
 		"find" : function(find,root,eq){
 			return (typeof root === "number") ? IB.findLite(find)[root] :
 			(typeof eq === "number") ? IB.findBySeveralPlaces(find,root)[eq] : IB.findBySeveralPlaces(find,root);
+		},
+		"search":function(find,root,eq){
+			var root   = IB.find(root);
+			var findes = IB.find(find,root);
+			if(!root.length) return findes;
+			return IB.matches(root,find) ? root.concat(findes) : findes;
 		}
 	});
 	
+	var IBWEB_MODULE = {
+		"":{
+			$$directives:{}
+		}
+	};
+	
+	IB.METHOD({
+		directive:function(directiveName,controller){
+			if(typeof directiveName === "string" && typeof controller === "function"){
+				IBWEB_MODULE[""].$$directives[directiveName] = controller;
+			}
+		},
+		bootstrap:function(root){
+			var rootEl = IB.findLite(root);
+			IB.each(IB.find("[ib-app]"),function(appElement){
+				if(!appElement.__ibapp__) {
+					var application = IBWEB_MODULE[appElement.getAttribute("ib-app")];
+					if(application){
+						IB.forEach(application.$$directives,function(directive,selector){
+							var selectElements = IB.find(selector,rootEl.length?rootEl:(void 0));
+							IB.each(selectElements,function(directiveElement){
+								if(!directiveElement.hasOwnProperty("__ibdirective__")){
+									var elementAttribute = {};
+									IB.forEach(directiveElement.attributes,function(attribute,key){
+										if(!isNaN(+key) && attribute && attribute.name){
+											elementAttribute[attribute.name] = attribute.value;
+										}
+									});
+									directiveElement.__ibdirective__ = directive(directiveElement,directiveElement.dataset,elementAttribute);
+								}
+							});
+						});
+					}
+				}
+			});
+		}
+	});
+	
+	// Mozilla, Opera, Webkit 
+	if (document.addEventListener) {
+		document.addEventListener("DOMContentLoaded", function () {
+			document.removeEventListener("DOMContentLoaded", arguments.callee, false);
+			IB.bootstrap();
+		}, false);
+	};
 });
