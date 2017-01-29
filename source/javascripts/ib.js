@@ -503,6 +503,40 @@
 		}
 	});
 	
+	IB.DUAL({
+		"each":function(d,f){
+			for(var i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( f(d[i],i) === CFBREAKER ) break;
+			return d;
+		},
+		"map":function(d,f){
+			for(var c,i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(d[i],i)) === CFBREAKER ) break; else (d[i]=c);
+			return d;
+		},
+		"inject":function(d,f,r){
+			for(var c,r=(typeof r === "object")?r:{},i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(r,d[i],i)) === CFBREAKER ) break; else r=c;
+			return r;
+		},
+		"reduce":function(d,f,r){
+			for(var c,i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(r,d[i],i)) == CFBREAKER ) break; else r=c;
+			return r;
+		},
+		"forEach":function(d,f){
+			if(typeof d === "object" && !CFIS.DATA(d)) for(var k in d) if( f(d[k],k) === CFBREAKER ) return d;
+			else f(d,(void 0));
+			return d;
+		},
+		"forMap":function(d,f,c){
+			if(typeof d === "object" && !CFIS.DATA(d)) for(var k in d) if( (c=f(d[k],k)) === CFBREAKER ) return d; else d[k] = c;
+			else return f(d,(void 0));
+			return d;
+		},
+		"times":function(l,f){
+			for(var c,d=[],i=0,l=(typeof l==="number" && l>=0)?l:0;i<l;i++) if( (c=f(i)) === CFBREAKER ) break; else (d.push(c));
+			return d;
+		}
+	});
+	
+	
     (function(FN,REMOVE_VALUE,REDUCE,SELECT,FOR_MAP){
         
         var Block = function(domainValue,domainSize,space){
@@ -546,15 +580,21 @@
 				this.$range = range;
 			},
             domainRangeSize:function(v){
-                return (v / (this.$domain[1] - this.$domain[0])) * (this.$range[1] - this.$range[0])
+				return FOR_MAP(this.$domain,function($domain,sel){
+					var $range = sel ? this.$range[sel] : this.$range;
+					return (v / ($domain[1] - $domain[0])) * ($range[1] - $range[0]);
+				}.bind(this));
             },
-            domainRange:function(v,k){
-				
-                var dSize = this.$domain[1] - this.$domain[0];
-                var sSize = this.$range[1] - this.$range[0];
-                var dRate = (v - this.$domain[0]) / dSize;
-                var calc  = this.$range[0] + sSize * dRate;
-                return this.$niceRange ? Math.round(calc) : calc;
+            domainRange:function(v){
+				return FOR_MAP(this.$domain,function($domain,sel){
+					var $range = sel ? this.$range[sel] : this.$range;
+					
+	                var dSize = $domain[1] - $domain[0];
+	                var sSize = $range[1] - $range[0];
+	                var dRate = (v - $domain[0]) / dSize;
+	                var calc  = $range[0] + sSize * dRate;
+	                return this.$niceRange ? Math.round(calc) : calc;
+				}.bind(this));
             },
             block:function(start,size){
                 var block = new Block(start,size,this);
@@ -576,39 +616,6 @@
         }());
         
     }(IB,IB.removeValue,IB.reduce,IB.select,IB.forMap));
-	
-	IB.DUAL({
-		"each":function(d,f){
-			for(var i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( f(d[i],i) === CFBREAKER ) break;
-			return d;
-		},
-		"map":function(d,f){
-			for(var c,i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(d[i],i)) === CFBREAKER ) break; else (d[i]=c);
-			return d;
-		},
-		"inject":function(d,f,r){
-			for(var c,r=(typeof r === "object")?r:{},i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(r,d[i],i)) === CFBREAKER ) break; else r=c;
-			return r;
-		},
-		"reduce":function(d,f,r){
-			for(var c,i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( (c=f(r,d[i],i)) == CFBREAKER ) break; else r=c;
-			return r;
-		},
-		"forEach":function(d,f){
-			if(CFIS.DATA(d)) f(d,(void 0));
-			else for(var k in d) if( f(d[k],k) === CFBREAKER ) return d;
-			return d;
-		},
-		"forMap":function(d,f,c){
-			if(CFIS.DATA(d)) return f(d,(void 0));
-			else for(var k in d) if( (c=f(d[k],k)) === CFBREAKER ) return d; else d[k] = c;
-			return d;
-		},
-		"times":function(l,f){
-			for(var c,d=[],i=0,l=(typeof l==="number" && l>=0)?l:0;i<l;i++) if( (c=f(i)) === CFBREAKER ) break; else (d.push(c));
-			return d;
-		}
-	});
 	
 	IB.EXTEND = function(block){
 		if(typeof block === "function") block.call(IB,IB,CFIS,CFAS,TODO);
