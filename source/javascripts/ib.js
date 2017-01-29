@@ -537,33 +537,44 @@
 	});
 	
 	
-    (function(FN,REMOVE_VALUE,REDUCE,SELECT,FOR_MAP){
+    (function(FN,REMOVE_VALUE,REDUCE,SELECT,CLONE,FOR_MAP){
         
-        var Block = function(domainValue,domainSize,space){
-            this.$space       = space;
-            this.$domainStart = domainValue||0;
-            this.$domainSize  = domainSize||0;
+        var Block = function(posSize){
+            this.$space   = (void 0)
+			this.$posSize = posSize;
         };
         
         Block.prototype = {
-            domainValue:function(){ return this.$domainStart; },
-            domainSize:function(){ return this.$domainSize; },
+            domainValue:function(){ return FOR_MAP(CLONE(this.$posSize),function(posSize){return posSize[0];}); },
+            domainSize :function(){ return FOR_MAP(CLONE(this.$posSize),function(posSize){return posSize[1];}); },
             conflicts:function(otherBlocks,selector){
                 return REDUCE(otherBlocks,function(red,block){
                     var selectBlock = SELECT(block,selector);
                     if(selectBlock instanceof Block){
                         if((selectBlock === this) || (selectBlock.$space != this.$space)) return red;
-                        if(selectBlock.$domainStart < this.$domainStart && (selectBlock.$domainStart + selectBlock.$domainSize) <= this.$domainStart) return red;
-                        if(selectBlock.$domainStart > this.$domainStart && (this.$domainStart  + this.$domainSize)  <= selectBlock.$domainStart) return red;
+                        if(selectBlock.$posSize[0] < this.$posSize[0] && (selectBlock.$posSize[0] + selectBlock.$posSize[1]) <= this.$posSize[0]) return red;
+                        if(selectBlock.$posSize[0] > this.$posSize[0] && (this.$posSize[0]  + this.$posSize[1])  <= selectBlock.$posSize[0]) return red;
                         red.push(block);
                     }
                     return red;
                 }.bind(this),[]);
             },
-            rangeStart:function(){ return this.$space.domainRange(this.$domainStart); },
-            rangeSize:function(){ return this.$space.domainRangeSize(this.$domainSize); },
-            rangeEnd:function(){ return this.rangeStart() + this.rangeSize(); },
-            call:function(f){ typeof f === "function" && f.call(this,this); }
+            rangeStart:function(){ return this.$space.domainRange(FOR_MAP(CLONE(this.$posSize),function(posSize){ return posSize[0]; })); },
+            rangeSize:function(){ return this.$space.domainRangeSize(FOR_MAP(CLONE(this.$posSize),function(posSize){ return posSize[1]; })); },
+			rangeMap:function(){
+				var rangeStart = this.rangeStart();
+				var rangeSize  = this.rangeSize();
+				return FOR_MAP(rangeStart,function($start,sel){ 
+					var $size = sel ? rangeSize[sel] : rangeSize;
+					return {
+						start:$start,
+						size:$size,
+						end:$start+$size
+					};
+				});
+			},
+            rangeEnd:function(){ return this.rangeMap(this.rangeMap(),function(map){ return map.end; }); },
+            call:function(f){ typeof f === "function" && f.call(this,this.rangeMap()); }
         };
         
         var Space = function(domain,range){
@@ -580,24 +591,25 @@
 				this.$range = range;
 			},
             domainRangeSize:function(v){
-				return FOR_MAP(this.$domain,function($domain,sel){
+				return FOR_MAP(CLONE(this.$domain),function($domain,sel){
 					var $range = sel ? this.$range[sel] : this.$range;
-					return (v / ($domain[1] - $domain[0])) * ($range[1] - $range[0]);
+					return ((sel ? v[sel] : v) / ($domain[1] - $domain[0])) * ($range[1] - $range[0]);
 				}.bind(this));
             },
             domainRange:function(v){
-				return FOR_MAP(this.$domain,function($domain,sel){
+				return FOR_MAP(CLONE(this.$domain),function($domain,sel){
 					var $range = sel ? this.$range[sel] : this.$range;
-					
 	                var dSize = $domain[1] - $domain[0];
 	                var sSize = $range[1] - $range[0];
-	                var dRate = (v - $domain[0]) / dSize;
+	                var dRate = ((sel ? v[sel] : v) - $domain[0]) / dSize;
 	                var calc  = $range[0] + sSize * dRate;
+					
 	                return this.$niceRange ? Math.round(calc) : calc;
 				}.bind(this));
             },
-            block:function(start,size){
-                var block = new Block(start,size,this);
+            block:function(posSize){
+                var block = new Block(posSize);
+				block.$space = this;
                 return block;
             }
         };
@@ -609,13 +621,12 @@
         }());
         
         FN.block = (function(){
-            return function(domainValue,domainSize){
-                return new Block(domainValue,domainSize);
+            return function(posSize){
+                return new Block(posSize);
             };
-            
         }());
-        
-    }(IB,IB.removeValue,IB.reduce,IB.select,IB.forMap));
+		
+    }(IB,IB.removeValue,IB.reduce,IB.select,IB.clone,IB.forMap));
 	
 	IB.EXTEND = function(block){
 		if(typeof block === "function") block.call(IB,IB,CFIS,CFAS,TODO);

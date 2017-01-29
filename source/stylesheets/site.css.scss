@@ -13,7 +13,7 @@ body {
 	box-sizing:border-box;
 }
 
-[role-space] {
+[role-space],[role-space2d] {
 	@include inline-block(500px,40px);
 	border:1px solid gray;
 	text-align:left;
@@ -25,4 +25,8 @@ body {
 		border:1px solid blue;
 		transition:all .25s;
 	}
+}
+
+[role-space2d] {
+	height:500px;
 }
