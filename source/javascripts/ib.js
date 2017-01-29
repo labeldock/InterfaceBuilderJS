@@ -223,6 +223,24 @@
 			var data = IB.asArray(data);
 			return IB.each(appends,function(value){ data.push(value); }), data;
 		},
+		"select":function(target,path){
+	        switch(typeof path){
+				case "number":
+					path += "";
+				case "string":
+					if(path.indexOf("[") == 0){
+						return eval("target"+path);
+					} else {
+						return eval("target."+path);
+					}
+	            case "function":
+	                return path.call(this,target);
+	            case "undefined":
+	            default:
+	                return target;
+	                break;
+	        }
+		},
 		"filter":function(data,func){
 			for(var i=0,keys = Object.keys(data),l=keys.length;i<l;i++){
 				var value = data[keys[i]];
@@ -485,61 +503,81 @@
 		}
 	});
 	
-	IB.METHOD({
-		"space":(function(REMOVE_VALUE){
-			
-	        var Block = function(space,domainValue,domainSize){
-	            this.$space       = space;
-	            this.$domainStart = domainValue||0;
-	            this.$domainSize  = domainSize||0;
-	        };
+    (function(FN,REMOVE_VALUE,REDUCE,SELECT,FOR_MAP){
+        
+        var Block = function(domainValue,domainSize,space){
+            this.$space       = space;
+            this.$domainStart = domainValue||0;
+            this.$domainSize  = domainSize||0;
+        };
+        
+        Block.prototype = {
+            domainValue:function(){ return this.$domainStart; },
+            domainSize:function(){ return this.$domainSize; },
+            conflicts:function(otherBlocks,selector){
+                return REDUCE(otherBlocks,function(red,block){
+                    var selectBlock = SELECT(block,selector);
+                    if(selectBlock instanceof Block){
+                        if((selectBlock === this) || (selectBlock.$space != this.$space)) return red;
+                        if(selectBlock.$domainStart < this.$domainStart && (selectBlock.$domainStart + selectBlock.$domainSize) <= this.$domainStart) return red;
+                        if(selectBlock.$domainStart > this.$domainStart && (this.$domainStart  + this.$domainSize)  <= selectBlock.$domainStart) return red;
+                        red.push(block);
+                    }
+                    return red;
+                }.bind(this),[]);
+            },
+            rangeStart:function(){ return this.$space.domainRange(this.$domainStart); },
+            rangeSize:function(){ return this.$space.domainRangeSize(this.$domainSize); },
+            rangeEnd:function(){ return this.rangeStart() + this.rangeSize(); },
+            call:function(f){ typeof f === "function" && f.call(this,this); }
+        };
+        
+        var Space = function(domain,range){
+			this.domain(domain);
+			this.range(range);
+            this.$niceRange = true;
+        };
+        
+        Space.prototype = {
+			domain:function(domain){
+				this.$domain = domain;
+			},
+			range:function(range){
+				this.$range = range;
+			},
+            domainRangeSize:function(v){
+                return (v / (this.$domain[1] - this.$domain[0])) * (this.$range[1] - this.$range[0])
+            },
+            domainRange:function(v,k){
+				
+                var dSize = this.$domain[1] - this.$domain[0];
+                var sSize = this.$range[1] - this.$range[0];
+                var dRate = (v - this.$domain[0]) / dSize;
+                var calc  = this.$range[0] + sSize * dRate;
+                return this.$niceRange ? Math.round(calc) : calc;
+            },
+            block:function(start,size){
+                var block = new Block(start,size,this);
+                return block;
+            }
+        };
     
-	        Block.prototype = {
-	            domainValue:function(){ return this.$domainStart; },
-	            domainSize:function(){ return this.$domainSize; },
-	            rangeStart:function(){ return this.$space.domainRange(this.$domainStart); },
-	            rangeSize:function(){ return this.$space.domainRangeSize(this.$domainSize); },
-	            rangeEnd:function(){ return this.rangeStart() + this.rangeSize(); },
-	            managed:function(name){ flag === false ? REMOVE_VALUE(this.$space.$managedBlocks,this) : this.$space.$managedBlocks.push(this); },
-	            call:function(f){ typeof f === "function" && f.call(this,this); }
-	        };
-    
-	        var Space = function(domain,range){
-	            this.$domain = domain;
-	            this.$range  = range;
-	            this.$niceRange = true;
-	            this.$managedBlocks = [];
-	        };
-    
-	        Space.prototype = {
-	            domainRangeSize:function(v){
-	                return (v / (this.$domain[1] - this.$domain[0])) * (this.$range[1] - this.$range[0])
-	            },
-	            domainRange:function(v){
-	                var dSize = this.$domain[1] - this.$domain[0];
-	                var sSize = this.$range[1] - this.$range[0];
-	                var dRate = (v - this.$domain[0]) / dSize;
-	                var calc  = this.$range[0] + sSize * dRate;
-	                return this.$niceRange ? Math.round(calc) : calc;
-	            },
-	            block:function(start,size){
-	                var block = new Block(this,start,size);
-	                return block;
-	            }
-	        };
-			
+        FN.space = (function(){
             return function(domain,range){
                 return new Space(domain,range);
             };
-			
-		}(IB.removeValue))
-	});
+        }());
+        
+        FN.block = (function(){
+            return function(domainValue,domainSize){
+                return new Block(domainValue,domainSize);
+            };
+            
+        }());
+        
+    }(IB,IB.removeValue,IB.reduce,IB.select,IB.forMap));
 	
 	IB.DUAL({
-		"each":function(d,f){
-			for(var i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( f(d[i],i) === CFBREAKER ) break;
-			return d;
-		},
 		"each":function(d,f){
 			for(var i=0,d=CFAS.DATA(d),l=d.length;i<l;i++) if( f(d[i],i) === CFBREAKER ) break;
 			return d;
@@ -557,12 +595,13 @@
 			return r;
 		},
 		"forEach":function(d,f){
-			for(var k in d) if( f(d[k],k) === CFBREAKER ) return d;
+			if(CFIS.DATA(d)) f(d,(void 0));
+			else for(var k in d) if( f(d[k],k) === CFBREAKER ) return d;
 			return d;
 		},
-		"forMap":function(d,f){
-			var c;
-			for(var k in d) if( (c=f(d[k],k)) === CFBREAKER ) return d; else d[k] = c;
+		"forMap":function(d,f,c){
+			if(CFIS.DATA(d)) return f(d,(void 0));
+			else for(var k in d) if( (c=f(d[k],k)) === CFBREAKER ) return d; else d[k] = c;
 			return d;
 		},
 		"times":function(l,f){
