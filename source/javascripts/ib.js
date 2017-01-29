@@ -545,22 +545,24 @@
         };
         
         Block.prototype = {
-            domainValue:function(){ return FOR_MAP(CLONE(this.$posSize),function(posSize){return posSize[0];}); },
-            domainSize :function(){ return FOR_MAP(CLONE(this.$posSize),function(posSize){return posSize[1];}); },
+			getBlockValue:function(){ return typeof this.$posSize === "function" ? this.$posSize() : this.$posSize; },
+            domainValue:function(){ return FOR_MAP(CLONE(this.getBlockValue()),function(posSize){return posSize[0];}); },
+            domainSize :function(){ return FOR_MAP(CLONE(this.getBlockValue()),function(posSize){return posSize[1];}); },
             conflicts:function(otherBlocks,selector){
                 return REDUCE(otherBlocks,function(red,block){
                     var selectBlock = SELECT(block,selector);
+					var thisPosSize = this.getBlockValue();
                     if(selectBlock instanceof Block){
                         if((selectBlock === this) || (selectBlock.$space != this.$space)) return red;
-                        if(selectBlock.$posSize[0] < this.$posSize[0] && (selectBlock.$posSize[0] + selectBlock.$posSize[1]) <= this.$posSize[0]) return red;
-                        if(selectBlock.$posSize[0] > this.$posSize[0] && (this.$posSize[0]  + this.$posSize[1])  <= selectBlock.$posSize[0]) return red;
+                        if(selectBlock.$posSize[0] < thisPosSize[0] && (selectBlock.$posSize[0] + selectBlock.$posSize[1]) <= thisPosSize[0]) return red;
+                        if(selectBlock.$posSize[0] > thisPosSize[0] && (thisPosSize[0]  + thisPosSize[1])  <= selectBlock.$posSize[0]) return red;
                         red.push(block);
                     }
                     return red;
                 }.bind(this),[]);
             },
-            rangeStart:function(){ return this.$space.domainRange(FOR_MAP(CLONE(this.$posSize),function(posSize){ return posSize[0]; })); },
-            rangeSize:function(){ return this.$space.domainRangeSize(FOR_MAP(CLONE(this.$posSize),function(posSize){ return posSize[1]; })); },
+            rangeStart:function(){ return this.$space.domainRange(FOR_MAP(CLONE(this.getBlockValue()),function(posSize){ return posSize[0]; })); },
+            rangeSize:function(){ return this.$space.domainRangeSize(FOR_MAP(CLONE(this.getBlockValue()),function(posSize){ return posSize[1]; })); },
 			rangeMap:function(){
 				var rangeStart = this.rangeStart();
 				var rangeSize  = this.rangeSize();

@@ -35,7 +35,7 @@
 		var ic = 0, it = setInterval(function(){
 			ib.each(data,function(datum){	
 				datum.value += 1*(ib.versus()?-1:1);
-				datum.size += 1*(ib.versus()?-.5:.5);
+				datum.size += 1*(ib.versus()?0:.5);
 			});
 			
 			update();
@@ -81,9 +81,11 @@
 				var $li = $(this);
 				$li.text([datum.x,datum.width,datum.y,datum.height]+"");
 				
-				xySpace.block({
-					x:[datum.x,datum.width],
-					y:[datum.y,datum.height]
+				xySpace.block(function(){
+					return {
+						x:[datum.x,datum.width],
+						y:[datum.y,datum.height]
+					};
 				}).call(function(range){
 					$li.css({
 						left: range.x.start + "px",
@@ -99,7 +101,9 @@
 		var ic = 0, it = setInterval(function(){
 			ib.each(data,function(datum){	
 				datum.x += 1*(ib.versus()?-1:1);
-				datum.y += 1*(ib.versus()?-.5:.5);
+				datum.y += 1*(ib.versus()?-1:1);
+				datum.width  += 1*(ib.versus()?0:1);
+				datum.height += 1*(ib.versus()?0:1);
 			});
 			
 			update();
