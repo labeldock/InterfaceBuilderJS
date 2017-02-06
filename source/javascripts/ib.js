@@ -219,27 +219,28 @@
 	    "asArray":function(data,option){
 	    	return CFIS.DATA(data) ? data : IB.toArray(data,option);
 	    },
+		"assign":function(){
+			for(var r,i=0,l=arguments.length;i<l;i++){
+				if(r && (typeof arguments[i] === "object")) for(var key in arguments[i]) if(arguments[i].hasOwnProperty(key)) r[key] = arguments[i][key];
+				if(!r && (typeof arguments[i] === "object")) r = arguments[i];
+			}
+			return r;
+		},
 		"concat":function(data,appends){
 			var data = IB.asArray(data);
 			return IB.each(appends,function(value){ data.push(value); }), data;
 		},
 		"select":function(target,path){
-	        switch(typeof path){
-				case "number":
-					path += "";
-				case "string":
-					if(path.indexOf("[") == 0){
-						return eval("target"+path);
-					} else {
-						return eval("target."+path);
-					}
-	            case "function":
-	                return path.call(this,target);
-	            case "undefined":
-	            default:
-	                return target;
-	                break;
-	        }
+			if(typeof target === "object"){
+		        switch(typeof path){
+					case "number": path += "";
+					case "string": return path.indexOf("[") == 0 ? eval("target"+path) : eval("target."+path);
+					case "function": return path.call(this,target);
+		        }
+			} else if(typeof target === "function"){
+				return target.apply(this,Array.prototype.slice.call(arguments,1));
+			}
+			return target;
 		},
 		"filter":function(data,func){
 			for(var i=0,keys = Object.keys(data),l=keys.length;i<l;i++){
@@ -364,7 +365,7 @@
 			return function(node,nestedKey,proc,startParam){
 	            if(CFIS.DATUM(node) && !CFIS.ARRAY(node)) {
 	                var destChilds = [];
-	                nestedKey === Object && IB.each(Object.nestedKeys(node),function(ok){ CFIS.ARRAY(node[ok]) && destChilds.push(node[ok]); });
+	                nestedKey === Object && IB.each(Object.keys(node),function(ok){ CFIS.ARRAY(node[ok]) && destChilds.push(node[ok]); });
 	                typeof node[nestedKey] === "object" && destChilds.push(node[nestedKey]);
 	                startParam = proc(node,startParam,0);
 	                IB.each(destChilds,function(dest){ DROPDOWN_PROC(dest,nestedKey,proc,startParam,0); });
@@ -521,8 +522,8 @@
 			return r;
 		},
 		"forEach":function(d,f){
-			if(typeof d === "object" && !CFIS.DATA(d)) for(var k in d) if( f(d[k],k) === CFBREAKER ) return d;
-			else f(d,(void 0));
+			if(typeof d === "object" && !CFIS.DATA(d)) { for(var k in d) if( f(d[k],k) === CFBREAKER ) return d; } 
+			else { f(d,(void 0)) };
 			return d;
 		},
 		"forMap":function(d,f,c){
@@ -536,6 +537,76 @@
 		}
 	});
 	
+	(function(FN,SELECT,ASSIGN,FOR_EACH,NESTED_EACH,CLONE){
+		
+		var Tuner = function(result,mapping,onlyMapping,nestedKey){	
+			var config = {};
+			
+			FOR_EACH(ASSIGN({},mapping),function(configValue,key){
+				if(key) if(typeof configValue === "string"){ config[key] = {require:true, key:configValue}; }
+				else if(typeof configValue === "object"){ config[key] = configValue instanceof Array ? {require:true, key:configValue[0], value:configValue[1], copy:configValue[2]} : configValue; }
+                else if(typeof configValue === "boolean"){ config[key] = {require:configValue}; }
+                else if(typeof configValue === "function"){ config[key] = {require:true, value:configValue}; }
+			});
+            
+			Object.keys(config).length && NESTED_EACH(result, nestedKey === (void 0) ? Object : nestedKey, function(datum){
+				
+				var destDeleteKeys = [];
+				var destSetValues  = {};
+				
+				FOR_EACH(config,function(attrConfig, key){
+					//if datum no value
+					if (!datum.hasOwnProperty(key) && attrConfig.require === true) { datum[key] = CLONE(attrConfig.value, true); }
+					//dest remove key
+					if (attrConfig.require === false) { destDeleteKeys.push(key); }
+					//call for copy
+					if(typeof attrConfig.copy === "boolean" && attrConfig.key){
+						var keyName = SELECT(attrConfig.key,datum[key],key,datum);
+						
+						if(typeof keyName === "string" || typeof keyName === "number"){
+							if(typeof attrConfig.value === "function"){
+								destSetValues[key]     = SELECT.call(datum,attrConfig.value,datum[key],key,datum);
+								destSetValues[keyName] = SELECT.call(datum,attrConfig.value,datum[key],keyName,datum);
+							} else {
+								destSetValues[keyName] = attrConfig.copy ? CLONE(datum[key]) : datum[key];
+							}
+						}
+					} else {
+						//call for value
+						if (attrConfig.value && attrConfig.require !== false) {
+							if(datum[key] === (void 0) || typeof attrConfig.value === "function"){
+								datum[key] = SELECT.call(datum,attrConfig.value,datum[key],key,datum);
+							}
+						}
+						//call for key
+						if (attrConfig.key && attrConfig.require !== false) {
+							var keyName = SELECT.call(datum,attrConfig.key,datum[key],key,datum);
+							if(typeof keyName === "string" || typeof keyName === "number"){
+								destSetValues[keyName] = datum[key];
+								delete datum[key];
+							}
+						}
+					}
+				});
+				
+				//remove key
+				for(var i=0,l=destDeleteKeys.length;i<l;i++) delete config[destDeleteKeys[i]];
+				for(var key in destSetValues) datum[key] = destSetValues[key];
+				
+			});
+			
+			return result;
+		};
+		
+		FN.tuneOf = function(data,mapping,onlyMapping,nestedKey){
+			return Tuner(data,mapping,nestedKey,onlyMapping);
+		};
+		
+		FN.tune = function(data,mapping,onlyMapping,nestedKey){
+			return Tuner(CLONE(data,true),mapping,nestedKey,onlyMapping);
+		};
+		
+	}(IB,ib.select,ib.assign,ib.forEach,ib.nestedEach,ib.clone));
 	
     (function(FN,REMOVE_VALUE,REDUCE,SELECT,CLONE,FOR_MAP){
         

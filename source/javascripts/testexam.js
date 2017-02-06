@@ -40,7 +40,7 @@
 			
 			update();
 			
-			if((ic++) > 5) {
+			if((ic++) > 2) {
 				clearInterval(it);
 			}
 		},1000);
@@ -108,7 +108,7 @@
 			
 			update();
 			
-			if((ic++) > 5){
+			if((ic++) > 2){
 				clearInterval(it);
 			}
 		},1000);
