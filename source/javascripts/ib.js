@@ -173,6 +173,10 @@
 				default : console.error("ib.clone::copy failed : target => ",target); return target; break;
 			}
 		},
+		"alloc":function(init){
+			var fn=init(),rn=function(){return fn.apply(this,Array.prototype.slice.call(arguments));};
+			return rn.reset = function(){fn=init();}, rn;
+		},
 		"findKeys":function(obj,value){
 			var result = [];
 	        if(CFIS.DATA(obj)){
